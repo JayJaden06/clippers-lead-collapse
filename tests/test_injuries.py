@@ -93,3 +93,26 @@ def test_explain_says_why_a_player_counts_little():
     assert star == "With him on the floor they're about 7.0 points per 48 minutes better."
     gone = A.explain(R(gp_now=0, gp_prev=60, team_games=12, onoff=-1.2))
     assert "Hasn't played this season" in gone and "hasn't been better" in gone
+
+
+def test_reasons_wrapped_over_three_lines_or_a_page_break_stay_with_their_player():
+    pytest.importorskip("pdfplumber")
+    fx = Path(__file__).parent / "fixtures"
+    a = I.parse((fx / "Injury-Report_2026-10-23_09_45PM.pdf").read_bytes()).set_index("player_name")["reason"]
+    assert a["Cameron Carr"] == "Injury/Illness - Right Oblique Strain"  # "Tear" above him ran over from a page
+    b = I.parse((fx / "Injury-Report_2026-11-08_08_45PM.pdf").read_bytes()).set_index("player_name")["reason"]
+    assert b["Keshon Gilbert"] == "Injury/Illness - Left Knee Inflammation/Non-Surgical Procedure"
+
+
+def test_pregame_reports_are_matched_to_their_own_game(tmp_path):
+    pytest.importorskip("pdfplumber")
+    folder = tmp_path / "injuries" / "pregame"
+    folder.mkdir(parents=True)
+    (folder / "0022600102.pdf").write_bytes(
+        (Path(__file__).parent / "fixtures" / "Injury-Report_2026-10-23_09_45PM.pdf").read_bytes())
+    (folder / "0022600102.name").write_text("Injury-Report_2026-10-23_09_45PM.pdf")
+    pre = I.pregame_table(tmp_path)
+    assert set(pre["game_id"]) == {"0022600102"} and pre["report_time"].notna().all()
+    mine = pre[pre["matchup"] == "LAC@LAL"]
+    assert set(mine["team_name"]) == {"LA Clippers", "Los Angeles Lakers"}
+    assert len(pre) > len(mine)  # the report lists the whole night; the build keeps only this game's rows

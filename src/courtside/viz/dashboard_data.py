@@ -82,6 +82,7 @@ class DashboardData:
     roster: pd.DataFrame = field(default_factory=pd.DataFrame)
     shots: pd.DataFrame = field(default_factory=pd.DataFrame)
     injuries: pd.DataFrame = field(default_factory=pd.DataFrame)
+    game_injuries: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     @property
     def seasons(self) -> list[str]:
@@ -171,6 +172,7 @@ def _load(processed_dir: Path, analysis_json: Path) -> DashboardData:
         roster=optional("roster"),
         shots=optional("shots"),
         injuries=optional("injuries"),
+        game_injuries=optional("game_injuries"),
     )
 
 

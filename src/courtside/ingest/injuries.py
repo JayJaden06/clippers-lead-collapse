@@ -7,6 +7,9 @@ spacing to split on.
 
 Not stats.nba.com, so it doesn't go through ``NBAClient``; any failure here is reported and skipped, never fatal:
 the odds then simply carry no injury adjustment.
+
+For games already played, ``pull_pregame`` keeps the last report posted before each tip-off (the league leaves old
+reports up), so a game report can say who was out that night.
 """
 
 from __future__ import annotations
@@ -63,6 +66,55 @@ def pull_latest(raw_dir: Path, timeout: float = 30) -> Path | None:
         return None
 
 
+def _name_at(t: pd.Timestamp) -> str:
+    """The report file name for a 15-minute slot (US Eastern), in the league's current naming."""
+    return f"Injury-Report_{t:%Y-%m-%d}_{t:%I}_{t:%M}{t:%p}.pdf"
+
+
+def pull_pregame(raw_dir: Path, games: pd.DataFrame, tries: int = 8, timeout: float = 20) -> int:
+    """For each played game (``game_id``, ``tipoff_utc``, ``away``, ``home``), cache the last report posted before
+    tip-off as ``injuries/pregame/<game_id>.pdf``. Tries the 15-minute slots back from 15 minutes before tip-off
+    (two hours at most); a game with none gets a ``.missing`` marker so it isn't asked for again. Returns how
+    many reports were downloaded."""
+    folder = raw_dir / "injuries" / "pregame"
+    folder.mkdir(parents=True, exist_ok=True)
+    got = 0
+    for g in games.itertuples():
+        pdf, missing = folder / f"{g.game_id}.pdf", folder / f"{g.game_id}.missing"
+        if pdf.exists() or missing.exists():
+            continue
+        start = g.tipoff_utc.tz_convert("America/New_York").tz_localize(None).floor("15min") - pd.Timedelta(minutes=15)
+        try:
+            for i in range(tries):
+                name = _name_at(start - pd.Timedelta(minutes=15 * i))
+                r = requests.get(f"https://ak-static.cms.nba.com/referee/injury/{name}", headers=HEADERS,
+                                 timeout=timeout)
+                if r.status_code == 200 and r.content.startswith(b"%PDF"):
+                    (folder / f"{g.game_id}.name").write_text(name, encoding="utf-8")
+                    pdf.write_bytes(r.content)
+                    got += 1
+                    break
+            else:
+                missing.write_text("no report in the two hours before tip-off", encoding="utf-8")
+        except requests.RequestException:
+            continue  # the network, not the report: try again next pull
+    return got
+
+
+def pregame_table(raw_dir: Path) -> pd.DataFrame:
+    """Every cached pre-game report's rows for its own game, with the ``game_id``."""
+    frames = []
+    for pdf in sorted((raw_dir / "injuries" / "pregame").glob("*.pdf")):
+        gid = pdf.stem
+        name_file = pdf.with_suffix(".name")
+        name = name_file.read_text(encoding="utf-8").strip() if name_file.exists() else ""
+        df = parse(pdf.read_bytes(), name)
+        frames.append(df.assign(game_id=gid))
+    if not frames:
+        return pd.DataFrame(columns=["game_id"] + COLUMNS)
+    return pd.concat(frames, ignore_index=True)
+
+
 def latest_cached(raw_dir: Path) -> Path | None:
     files = [p for p in (raw_dir / "injuries").glob("Injury-Report_*.pdf") if report_time(p.name)]
     return max(files, key=lambda p: report_time(p.name)) if files else None
@@ -116,9 +168,15 @@ def parse(pdf: bytes, name: str = "") -> pd.DataFrame:
                 elif c.get("reason") and not c.get("player") and "NOT YET SUBMITTED" not in c["reason"]:
                     page_rows.append({"top": top, "wrap": c["reason"]})
             players = [r for r in page_rows if "wrap" not in r]
+            first_top = players[0]["top"] if players else float("inf")
             for r in page_rows:
-                if "wrap" in r and players:
-                    min(players, key=lambda p: abs(p["top"] - r["top"]))["reason"].append((r["top"], r["wrap"]))
+                if "wrap" not in r:
+                    continue
+                near = min(players, key=lambda p: abs(p["top"] - r["top"])) if players else None
+                if near is not None and abs(near["top"] - r["top"]) <= 16:
+                    near["reason"].append((r["top"], r["wrap"]))  # wrapped just above or below its player's line
+                elif r["top"] < first_top - 16 and rows:
+                    rows[-1]["reason"] = f"{rows[-1]['reason']} {r['wrap']}".strip()  # ran over from the last page
             for p in players:
                 text = " ".join(t for _, t in sorted(p.pop("reason")) if t)
                 p["reason"] = re.sub(r"\s+/\s*|\s*/\s+", "/", re.sub(r"\s+", " ", text)).strip(" -")
@@ -139,9 +197,9 @@ def team_table(raw_dir: Path, team_abbreviation: str) -> pd.DataFrame | None:
     return df[df["matchup"].str.split("@").map(lambda t: team_abbreviation in t)].reset_index(drop=True)
 
 
-def same_rows(a: pd.DataFrame, b: pd.DataFrame) -> bool:
+def same_rows(a: pd.DataFrame, b: pd.DataFrame, extra: list[str] | None = None) -> bool:
     """Whether two tables list the same players and statuses (ignoring when the report was posted)."""
-    cols = [c for c in COLUMNS if c != "report_time"]
+    cols = [c for c in COLUMNS if c != "report_time"] + (extra or [])
     if set(cols) - set(a.columns) or set(cols) - set(b.columns):
         return False
     key = lambda d: d[cols].astype(str).sort_values(cols).reset_index(drop=True)  # noqa: E731

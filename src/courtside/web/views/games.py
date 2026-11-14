@@ -497,7 +497,8 @@ def page_replay() -> None:
                                     _unit_rows(lv.units, names) if lv.units else "; ".join(lv.suggestions) or "—",
                                     "bad", "decided") for lv in lvs], link=False, big_size="1.5rem")
 
-    # ---- who played
+    # ---- who was out, then who played
+    _who_was_out(gid, opp, opp_id_, lines, opp_lines)
     heading("Who played well", "players")
     if len(lines):
         st.markdown('<div class="takeaway">Every Clipper who played, best night first. The bar is his Game Score '
@@ -626,6 +627,77 @@ def _rating_line(who: str, t: pd.Series) -> str:
             f"({P._ord(t['ortg_rank'])}) and allow {t['drtg']:.1f} ({P._ord(t['drtg_rank'])}).")
 
 
+def _out_row(name: str, player_id, status: str, reason: str, note: str, right: str = "") -> str:
+    """One player on an injury report: face, name, status, the report's reason, and a line about him."""
+    pic = D.headshot_url(int(player_id), small=True) if pd.notna(player_id) else face(name)
+    return ('<div class="sc-row">' + (f'<img src="{pic}" alt="">' if pic else '<span class="o-blank"></span>')
+            + f'<div class="who"><b>{name}</b> <span class="o-status o-{status.lower()}">{status}</span><br>'
+            f'<span style="opacity:.65">{reason}</span><br><span class="o-why">{note}</span></div>'
+            f'<div class="pts">{right}</div></div>')
+
+
+def _out_card(team: str, logo: str, color: str, right: str, rows: list[str]) -> str:
+    """A team's injury-report card: a team-colored header, then one row per player."""
+    return (f'<div class="scard"><div class="o-top" style="--tc:{color};--td:{D.shade(color)}">'
+            f'<img src="{logo}" alt=""><span>{team}</span><b>{right}</b></div>'
+            + ("".join(rows) or '<div class="sc-foot">Nobody listed.</div>') + '<div class="sc-foot"></div></div>')
+
+
+def _reason(text: str | None) -> str:
+    return re.sub(r"^Injury/Illness\s*-\s*", "", text or "").strip() or "Not given"
+
+
+def _who_was_out(gid: str, opp: str, opp_id: int, lines: pd.DataFrame, opp_lines: pd.DataFrame) -> None:
+    """A played game: who was on the league's last injury report before tip-off, and whether each one played."""
+    ctx = current()
+    data, tid, season_now = ctx.data, ctx.settings.team_id, ctx.season_now
+    gi = data.game_injuries
+    rep = gi[(gi["game_id"] == gid) & gi["status"].isin(A.STATUS_WEIGHT)
+             & ~gi["reason"].fillna("").str.startswith("G League")] if len(gi) else gi
+    if gi.empty or not (gi["game_id"] == gid).any():
+        return  # no report kept for this game (an older season, or one the league didn't post)
+    heading("Who was out", "missing")
+    st.markdown("<div class='takeaway'>From the NBA's last injury report before tip-off, and whether each player "
+                "ended up playing.</div>", unsafe_allow_html=True)
+    season_prev = ctx.season_prev
+    allp = data.player_season.assign(k=lambda d: d["player_name"].map(A.name_key))
+    now = allp[allp["season"] == season_now]
+    prev = allp[allp["season"] == season_prev].sort_values("gp").drop_duplicates("k", keep="last").set_index("k")
+    ids = dict(zip(allp["k"], allp["player_id"]))
+    if len(data.roster):
+        ids.update(zip(data.roster["player_name"].map(A.name_key), data.roster["player_id"]))
+
+    def card(team_name: str, team: str, title: str, logo: str, color: str, box: pd.DataFrame) -> str:
+        played = {A.name_key(n): r for n, r in zip(box["player_name"], box.itertuples())}
+        avg = now[now["team_abbreviation"] == team].set_index("k")
+        rows, sat = [], 0
+        for r in rep[rep["team_name"] == team_name].itertuples():
+            k = A.name_key(r.player_name)
+            if k in played:
+                b = played[k]
+                note = f"Played anyway: {b.minutes:.0f} min, {int(b.pts)} pts."
+            else:
+                sat += 1
+                note = "Didn't play."
+            if k in avg.index:
+                note += f" Averages {avg.loc[k, 'pts']:.1f} pts in {avg.loc[k, 'min']:.0f} min this season."
+            elif k in prev.index:
+                note += (f" Hasn't played this season; averaged {prev.loc[k, 'pts']:.1f} pts in "
+                         f"{prev.loc[k, 'min']:.0f} min last season.")
+            else:
+                note += " Hasn't played this season."
+            rows.append(_out_row(r.player_name, ids.get(k), r.status, _reason(r.reason), note))
+        return _out_card(title, logo, color, f"{sat} sat out" if rows else "", rows)
+
+    oc = D.team_color(opp_id)
+    names_ = {int(t): n for t, n in zip(data.league_periods["team_id"], data.league_periods["team_name"])}
+    st.markdown('<div class="scards" style="--cols:2">'
+                + card(names_.get(tid, "LA Clippers"), "LAC", "Clippers", D.logo_url(tid, dark=True), "#1d428a", lines)
+                + card(names_.get(opp_id, ""), opp, names_.get(opp_id, opp), D.logo_url(opp_id, dark=not D.is_light(oc)),
+                       oc, opp_lines)
+                + "</div>", unsafe_allow_html=True)
+
+
 def _whos_out(pv, opp_id: int) -> None:
     """Both teams' players on the league's injury report for this game, with what each one's absence is worth."""
     ctx = current()
@@ -642,21 +714,15 @@ def _whos_out(pv, opp_id: int) -> None:
         total = min(float(out["expected"].sum()), A.TEAM_CAP) if len(out) else 0.0
         rows = []
         for r in out.itertuples():
-            reason = re.sub(r"^Injury/Illness\s*-\s*", "", r.reason or "").strip() or "Not given"
+            reason = _reason(r.reason)
             note = A.explain(r)
             if r.expected >= 0.05:
                 note += (f" Worth {r.worth:.1f} pts" + (f", counted at {A.STATUS_WEIGHT[r.status]:.0%} because he's "
                                                        f"{r.status.lower()}" if r.status != "Out" else "") + ".")
-            pic = D.headshot_url(int(r.player_id), small=True) if pd.notna(r.player_id) else face(r.player_name)
-            rows.append(
-                '<div class="sc-row">' + (f'<img src="{pic}" alt="">' if pic else '<span class="o-blank"></span>')
-                + f'<div class="who"><b>{r.player_name}</b> '
-                f'<span class="o-status o-{r.status.lower()}">{r.status}</span><br>'
-                f'<span style="opacity:.65">{reason}</span><br><span class="o-why">{note}</span></div>'
-                f'<div class="pts">{"−" + format(r.expected, ".1f") if r.expected >= 0.05 else ""}</div></div>')
-        return (f'<div class="scard"><div class="o-top" style="--tc:{color};--td:{D.shade(color)}">'
-                f'<img src="{logo}" alt=""><span>{team}</span><b>{"−" + format(total, ".1f") + " pts" if total >= 0.05 else "no effect"}</b></div>'
-                + ("".join(rows) or '<div class="sc-foot">Nobody listed.</div>') + '<div class="sc-foot"></div></div>')
+            rows.append(_out_row(r.player_name, r.player_id, r.status, reason, note,
+                                 "−" + format(r.expected, ".1f") if r.expected >= 0.05 else ""))
+        return _out_card(team, logo, color, "−" + format(total, ".1f") + " pts" if total >= 0.05 else "no effect",
+                         rows)
 
     oc = D.team_color(opp_id)
     st.markdown('<div class="scards" style="--cols:2">'

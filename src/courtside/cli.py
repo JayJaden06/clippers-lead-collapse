@@ -92,9 +92,13 @@ def pull(season: SeasonOpt = None) -> None:
             league.load_team_misc(client, s, settings.season_type)
             shots.load_shots(client, settings.team_id, s, settings.season_type)
     with client.refreshing():  # the schedule changes daily (results, times)
-        schedule.load_schedule(client, settings.current_season)
+        sched = schedule.load_schedule(client, settings.current_season)
     report_pdf = injuries.pull_latest(settings.raw_dir)  # official.nba.com, not stats.nba.com; never fatal
     console.print(f"injury report: {report_pdf.name if report_pdf else 'not available (odds carry no injury adjustment)'}")
+    played = sched[sched["game_id"].isin(set(df.loc[df["season"] == settings.current_season, "game_id"]))]
+    got = injuries.pull_pregame(settings.raw_dir, played)  # once per game, then cached
+    if got:
+        console.print(f"pre-game injury reports: {got} new")
     console.print(f"pull done (game logs, box scores, play-by-play, {settings.focus_player}, "
                   f"on/off, lineups, league, tracking): {client.stats}")
 
@@ -254,7 +258,7 @@ def build(season: SeasonOpt = None) -> None:
                            ignore_index=True)
     shot_table = shot_table[shot_table["game_id"].isin(set(df["game_id"]))]  # games we have box scores for
     shot_table.to_parquet(out / "shots.parquet", index=False)
-    _write_injuries(settings, out)
+    _write_injuries(settings, out, sched)
     console.print(
         f"tracking: {matchups['game_id'].nunique()} games of matchups and hustle "
         f"({len(skipped)} not published yet), matchups cover {coverage:.0%} of points; bio for {len(bio)} players"
@@ -263,9 +267,21 @@ def build(season: SeasonOpt = None) -> None:
 
 
 
-def _write_injuries(settings, out) -> None:
-    """The newest injury report's rows for Clippers games. Rewritten only when a player or status changes, so a
-    report that says the same thing as the last one isn't news for the morning refresh."""
+def _write_injuries(settings, out, sched: pd.DataFrame | None = None) -> None:
+    """The newest injury report's rows for Clippers games (``injuries``), and each played game's last pre-game
+    report (``game_injuries``). Rewritten only when a player or status changes, so a report that says the same
+    thing as the last one isn't news for the morning refresh."""
+    if sched is not None and len(sched):
+        try:
+            pre = injuries.pregame_table(settings.raw_dir)
+            match = sched.assign(matchup=sched["away"] + "@" + sched["home"])[["game_id", "matchup"]]
+            pre = pre.merge(match, on=["game_id", "matchup"], how="inner")  # each report's rows for its own game
+            path = out / "game_injuries.parquet"
+            if not (path.exists() and injuries.same_rows(pd.read_parquet(path), pre, extra=["game_id"])):
+                pre.to_parquet(path, index=False)
+                console.print(f"pre-game injury reports: {pre['game_id'].nunique()} games")
+        except Exception as e:
+            console.print(f"[yellow]pre-game injury reports not read ({type(e).__name__}: {e})[/]")
     try:
         table = injuries.team_table(settings.raw_dir, settings.team_abbreviation)
     except Exception as e:  # a report in a new layout shouldn't stop the rest of the build

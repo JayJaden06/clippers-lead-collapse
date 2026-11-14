@@ -18,7 +18,7 @@ Once that worked, I didn't want a one-off report that goes stale. So the project
 
 | Page | What it answers |
 |---|---|
-| **Games** | Every game this season. A played game opens its report: the scoreboard, a replay of the score margin with the biggest runs shaded, the best and worst Clippers, which lineups won and lost, and what decided it compared with a normal night. An upcoming game opens its game plan: the win chance (adjusted for who's on the NBA's injury report), who's out and what each absence is worth, and the keys to that matchup, each with how many points it's worth. |
+| **Games** | Every game this season. A played game opens its report: the scoreboard, a replay of the score margin with the biggest runs shaded, the best and worst Clippers, who was out (from the last injury report before tip-off, and whether each one played), which lineups won and lost, and what decided it compared with a normal night. An upcoming game opens its game plan: the win chance (adjusted for who's on the NBA's injury report), who's out and what each absence is worth, and the keys to that matchup, each with how many points it's worth. |
 | **Blown leads** | The answer, ranked: which parts of the game cost them points after halftime, a shot map of where the shots stop falling, the popular theories checked one by one, what changed since last season, and "what if" switches to see how much each fix would be worth. |
 | **Players** | Who loses the ball after halftime, player by player, with each player's games. |
 | **Vs. the league** | Whether every team fades after halftime (most don't), with all 30 teams on one chart. |
@@ -61,7 +61,7 @@ stats.nba.com ──► courtside pull ──► data/raw/  (every response cach
 
 - **Daily refresh.** A Windows scheduled task runs [`scripts/daily_refresh.ps1`](scripts/daily_refresh.ps1) when I sign in and at 8:30am: it pulls last night's game and the latest injury report, rebuilds everything, and pushes to `main` only if something new arrived. Streamlit Community Cloud redeploys from that push. It runs on my PC rather than in GitHub Actions because stats.nba.com blocks cloud servers.
 - **Nothing typed by hand.** Verdicts, headlines, card text and even the list of injured players come from the data. Returning players are found from today's roster (missed a quarter of the games since joining, and played 10+ minutes a game in a recent season).
-- **Tested.** 268 tests run on recorded API responses and the committed tables, including a headless run of every page; CI runs them on every push.
+- **Tested.** 271 tests run on recorded API responses and the committed tables, including a headless run of every page; CI runs them on every push.
 
 ## Methodology
 
@@ -80,7 +80,7 @@ Python 3.11+. With [uv](https://docs.astral.sh/uv/) (or plain `pip`):
 ```bash
 uv venv --python 3.12
 uv pip install -e ".[dashboard,dev,pipeline]"
-pytest -q                 # 268 tests, offline
+pytest -q                 # 271 tests, offline
 
 courtside dashboard       # open the site on the committed data, no API calls
 ```
