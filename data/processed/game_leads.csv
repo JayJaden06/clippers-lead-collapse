@@ -91,3 +91,4 @@ season,game_id,game_date,opponent_abbreviation,is_home,result,overtime_periods,m
 2026-27,0022600186,2026-11-04,MIA,True,L,1,20,1248.0,20,9,15,True,9,-1,36.27,14.02,9,blown_lead,blown_lead,blown_lead,blown_lead
 2026-27,0022600201,2026-11-08,NOP,True,W,0,20,2761.0,13,4,7,True,7,16,39.85,6.28,5,held_lead,held_lead,held_lead,held_lead
 2026-27,0022600213,2026-11-10,PHX,False,L,0,3,342.0,3,32,-17,False,-27,-23,3.02,44.2,11,never_led_big,never_led_big,never_led_big,never_led_big
+2026-27,0022600042,2026-11-13,OKC,True,W,0,15,1264.0,15,7,13,True,-2,1,29.48,16.63,10,held_lead,held_lead,held_lead,held_lead

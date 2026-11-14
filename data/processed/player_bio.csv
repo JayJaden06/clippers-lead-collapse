@@ -886,6 +886,7 @@ season,player_id,player_name,team_abbreviation,age,height_in,weight_lb,draft_yea
 2026-27,1628436,Luke Kornet,SAS,31.0,85,250.0,Undrafted,False
 2026-27,1641869,Malachi Smith,TOR,26.0,76,205.0,Undrafted,False
 2026-27,1642502,Malevy Leons,GSW,27.0,81,206.0,Undrafted,False
+2026-27,1643738,Malik Dia,NOP,22.0,81,256.0,Undrafted,False
 2026-27,1628370,Malik Monk,SAC,28.0,75,200.0,2017,False
 2026-27,1643576,Maliq Brown,SAS,22.0,80,225.0,2026,True
 2026-27,1631204,Marcus Sasser,DAL,26.0,74,195.0,2023,False
@@ -924,6 +925,7 @@ season,player_id,player_name,team_abbreviation,age,height_in,weight_lb,draft_yea
 2026-27,1629638,Nickeil Alexander-Walker,ATL,28.0,77,205.0,2019,False
 2026-27,203999,Nikola Jokić,DEN,31.0,83,284.0,2014,False
 2026-27,1631107,Nikola Jović,MIA,23.0,82,245.0,2022,False
+2026-27,1642260,Nikola Topić,OKC,21.0,78,200.0,2024,False
 2026-27,202696,Nikola Vučević,ORL,36.0,83,265.0,2011,False
 2026-27,1642363,Nique Clifford,OKC,24.0,77,210.0,2025,False
 2026-27,1642855,Noa Essengue,CHI,19.0,81,194.0,2025,False

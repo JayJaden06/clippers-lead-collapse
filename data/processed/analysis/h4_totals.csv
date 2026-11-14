@@ -1,11 +1,11 @@
 metric,H1,H2
-Team fouls,75.0,120.0
+Team fouls,86.0,127.0
 Late fouls while trailing,0.0,17.0
-Opponent FTA,97.0,158.0
+Opponent FTA,108.0,166.0
 Opponent FTA from late fouls,0.0,32.0
-Opponent FT rate,0.2215,0.3718
-Opponent FT rate excl. late fouls,0.2215,0.2965
-Opponent FT rate excl. late fouls and TOR,0.2247,0.2682
-Opponent FTM,75.0,111.0
-Clippers FTM,87.0,110.0
-Minutes opponent in bonus,35.3517,79.92
+Opponent FT rate,0.2231,0.351
+Opponent FT rate excl. late fouls,0.2231,0.2833
+Opponent FT rate excl. late fouls and TOR,0.2262,0.2569
+Opponent FTM,81.0,118.0
+Clippers FTM,99.0,115.0
+Minutes opponent in bonus,48.935,80.3733

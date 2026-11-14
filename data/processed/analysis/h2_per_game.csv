@@ -1,5 +1,6 @@
 game_id,opponent_abbreviation,tov_h1,tov_h2,opp_pts_off_tov_h1,opp_pts_off_tov_h2,margin_h1,margin_h2,lead_class,led_at_half
 0022600022,MIN,6.0,12.0,9.0,19.0,-13.0,-13.0,never_led_big,False
+0022600042,OKC,6.0,5.0,0.0,11.0,13.0,-12.0,held_lead,True
 0022600093,SAC,9.0,9.0,11.0,12.0,7.0,18.0,held_lead,True
 0022600102,LAL,12.0,14.0,14.0,19.0,0.0,-8.0,blown_lead,False
 0022600116,OKC,14.0,12.0,14.0,24.0,3.0,-10.0,never_led_big,True
